@@ -13,13 +13,13 @@ import numpy as np
 import matplotlib.pyplot as plt
 import cv2
 
-#caminho_img = '..\jogo_stor.jpg'
-caminho_img = '..\jogo_distorced.jpg'
-#caminho_img = '..\jogo_perp.jpeg'
-#caminho_img = '..\jogo_blackgorund.jpg'
-#caminho_img = '..\jogo_scuro.jpg'
-#caminho_img = '..\jogo_purp.jpg'
-#caminho_img = '..\jogo_red.jpg'
+#caminho_img = 'Imagens\jogo_stor.jpg'
+caminho_img = 'Imagens\jogo_distorced.jpg'
+#caminho_img = 'Imagens\jogo_perp.jpeg'
+#caminho_img = 'Imagens\jogo_blackgorund.jpg'
+#caminho_img = 'Imagens\jogo_scuro.jpg'
+#caminho_img = 'Imagens\jogo_purp.jpg'
+#caminho_img = 'Imagens\jogo_red.jpg'
 
 
 # --- Load image ---
