@@ -29,7 +29,7 @@ cv2.imwrite(file_path, img_hsv)
 
 #Mascaras Para deter os nums / FUNCIONA!
 lower_gold = np.array([10, 60, 30], np.uint8)
-upper_gold = np.array([150, 255, 255], np.uint8)
+upper_gold = np.array([150,255, 255], np.uint8)
 gold_mask = cv2.inRange(img_hsv, lower_gold, upper_gold)
 
 kernel = np.ones((4, 4), np.uint8)
@@ -43,7 +43,7 @@ file_path = os.path.join(output_folder, "imagem_teste_binaria.png")
 cv2.imwrite(file_path, img_binary)
 
 
-# Load templates for digits 1-15 / FUNCIONA!
+# Load dos templates 
 templates = {}
 for i in range(1, 16):
     path = f"../templates/mask{i}.png"
@@ -56,17 +56,17 @@ for i in range(1, 16):
     temp_bin = cv2.dilate(temp_bin, kernel, iterations=1)
     templates[str(i)] = temp_bin
 
-print("Loaded templates:", templates.keys())
+print("DEBUG -- Templates Carregados:", templates.keys())
 
-
-## A PARTIR DAQUI 
-
+# Dividir a imagem nos quadrados de cada número
 cell_h = img_binary.shape[0] // 4
 cell_w = img_binary.shape[1] // 4
 
 # Filtrar contornos válidos (remove ruído) 
 contornos, hieraquia = cv2.findContours(img_binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE) 
-contornos_validos = [c for c in contornos if cv2.contourArea(c) > 50]
+
+# Debug quadrados vazios
+quadrados_vazios = 0
 
 # Contornos por cada número
 # Juntar os contornos, quando existe mais do que um perto junta os dois
@@ -79,17 +79,25 @@ for row in range(4):
         x2 = (col + 1) * cell_w
 
         mascara_quadrado = img_binary[y1:y2, x1:x2]
-
         contornos, hieraquia = cv2.findContours(mascara_quadrado, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-
-        contornos_validos = [c for c in contornos if cv2.contourArea(c) > 50]
-
-        if not contornos_validos:
+        # print(f"DEBUG -- Contorno Detatado:{len(contornos)}")
+        
+        # Lidar com quadrados vazios
+        if len(contornos) == 0:
+            regioes_unidas.append((
+            x1, y1,
+            cell_w, cell_h,
+            None  # Assinala a região como vazia -- Utilizado no matching
+            ))
+            # Debug quadrados vazios
+            quadrados_vazios += 1
+            print("DEBUG -- Quadrados vazios:", quadrados_vazios)
             continue
-
-        # Quando temos dois contornos válidos no mesmo quadrado
+        
         all_points = []
-        for c in contornos_validos:
+        ## COMENTAR MELHOR ESTE BLOCO todo
+        # Quando temos dois contornos válidos no mesmo quadrado
+        for c in contornos:
             all_points.extend(c.reshape(-1, 2))
 
         all_points = np.array(all_points)
@@ -117,7 +125,7 @@ for row in range(4):
             regiao
         ))
 
-    
+
 def normalize(img, target_size=(60, 60)):
     return cv2.resize(img, target_size, interpolation=cv2.INTER_AREA)
 
@@ -133,13 +141,22 @@ for name in sorted_templates:
 nums_matriz = []
 # Fazer match entre os templates e as regiões obtidas
 for x, y, w, h, regiao in regioes_unidas:
-    regiao_n = normalize(regiao)
-    _, regiao_n = cv2.threshold(regiao_n, 128, 255, cv2.THRESH_BINARY)
-    
     # Default
     best_score = -1
     best_label = None
+    
+    # Verifica se o quadrado é vazio (Assegura que fica bem marcado na matriz final)
+    if regiao is None:
+        best_label = -1
+        nums_matriz.append(best_label) 
+        continue
+    
+    # Quadrado ñ Vazio
+    else:
+        regiao_n = normalize(regiao)
+        _, regiao_n = cv2.threshold(regiao_n, 128, 255, cv2.THRESH_BINARY)
 
+    # Match das regiões dos números com os templates
     for label, temp in sorted_templates:
         temp_n = normalize(temp)
         _, temp_n = cv2.threshold(temp_n, 128, 255, cv2.THRESH_BINARY)
@@ -165,14 +182,19 @@ for x, y, w, h, regiao in regioes_unidas:
         plt.show()
         """
        
-        # Encontra Match
+        # Encontra o Match
         if score > best_score:
             best_score = score
             best_label = int(label)
-            
+    
+    print(f"DEBUG -- Melhor Score:{best_score} | Melhor Label: {best_label}")
+    
+    # Quadrado que não está vazio o suficiente para ser apanhado anteriormente
+    if best_score < 0.4:
+        best_label = -1
 
     # Guarda o melhor match
-    if best_score > 0.6:
+    else:
         detections.append({
             "x": x,
             "y": y,
@@ -185,15 +207,12 @@ for x, y, w, h, regiao in regioes_unidas:
     nums_matriz.append(best_label) 
     # print(f"DEBUG -- Estado Atual da Matriz de Jogo:{nums_matriz}") 
     
-        
 
 final_boxes = detections
 print(f"DEBUG -- Total de deteções finais: {len(final_boxes)}")
 
-# Sort by reading order and build 4x4 matrix
+# Coordenadas dos pontos finais ordenadas
 final_boxes_sorted = sorted(final_boxes, key=lambda d: (d["y"], d["x"]))
-
-
 
 print(f"DEBUG -- Estado Atual da Matriz de Jogo:{nums_matriz}") 
 while len(nums_matriz) < 16:
