@@ -217,15 +217,17 @@ plt.imshow(output_rgb)
 plt.title("Num Detetados Imagem Real")
 plt.axis("off")
 
-
 plt.tight_layout()
 plt.show()
+
 print("4x4 matrix of detected numbers:\n", matrix_4x4)
 
+# Guardar Imagem Output Final
 imagens_finais_folder = "imagens_finais"
 if not os.path.exists(imagens_finais_folder):
     os.makedirs(imagens_finais_folder)
 
+# Ajuda a certificar de que não se guarda a mesma imagem duas vezes
 img_hash = hashlib.md5(output_rgb).hexdigest()
 
 file_path_output = os.path.join(imagens_finais_folder, f"imagem_final_{img_hash}.png")
