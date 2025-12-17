@@ -1,6 +1,8 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import cv2
+import os
+import hashlib
 
 # Load main image / FUNCIONA!
 image_path = 'imagem_final.png'
@@ -8,15 +10,22 @@ img = cv2.imread(image_path)
 if img is None:
     raise FileNotFoundError("Could not load main image.")
 
-img_teste = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-cv2.imwrite("imagem_teste.png", img_teste)
+output_folder = "imagens_teste"
+if not os.path.exists(output_folder):
+    os.makedirs(output_folder)
 
+
+img_teste = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+file_path = os.path.join(output_folder, "imagem_teste.png")
+cv2.imwrite(file_path, img_teste)
 
 img_h, img_w = img.shape[:2]
 
 # Extract digits via HSV mask (gold color)
 img_hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
-cv2.imwrite("imagem_teste_hsv.png", img_hsv)
+file_path = os.path.join(output_folder, "imagem_teste_hsv.png")
+cv2.imwrite(file_path, img_hsv)
+
 
 #Mascaras Para deter os nums / FUNCIONA!
 lower_gold = np.array([10, 60, 30], np.uint8)
@@ -28,8 +37,10 @@ kernel = np.ones((4, 4), np.uint8)
 gold_mask = cv2.morphologyEx(gold_mask, cv2.MORPH_CLOSE, kernel, iterations=2)
 gold_mask = cv2.dilate(gold_mask, kernel, iterations=1)
 
+# Imagem 
 img_binary = gold_mask.copy()
-cv2.imwrite("imagem_teste_binaria.png", img_binary)
+file_path = os.path.join(output_folder, "imagem_teste_binaria.png")
+cv2.imwrite(file_path, img_binary)
 
 
 # Load templates for digits 1-15 / FUNCIONA!
@@ -50,75 +61,79 @@ print("Loaded templates:", templates.keys())
 
 ## A PARTIR DAQUI 
 
-# Contornos dos nums
-contours, _ = cv2.findContours(img_binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+cell_h = img_binary.shape[0] // 4
+cell_w = img_binary.shape[1] // 4
 
-regiao_num = []
-for cnt in contours:
-    x, y, w, h = cv2.boundingRect(cnt)
+# Filtrar contornos válidos (remove ruído) 
+contornos, hieraquia = cv2.findContours(img_binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE) 
+contornos_validos = [c for c in contornos if cv2.contourArea(c) > 50]
 
-    # filter small noise
-    if w < 20 or h < 20:
-        continue
-
-    regiao = img_binary[y:y+h, x:x+w]
-    regiao_num.append((x, y, w, h, regiao))
-
-regiao_num = sorted(regiao_num, key=lambda r: r[0])
-# --- Merge nearby ROIs into multi-digit candidates ---
+# Contornos por cada número
+# Juntar os contornos, quando existe mais do que um perto junta os dois
 regioes_unidas = []
-i = 0
-while i < len(regiao_num):
-    x, y, w, h, roi = regiao_num[i]
+for row in range(4):
+    for col in range(4):
+        y1 = row * cell_h
+        y2 = (row + 1) * cell_h
+        x1 = col * cell_w
+        x2 = (col + 1) * cell_w
 
-    # current merged bbox
-    x_start = x
-    x_end   = x + w
-    y_top   = y
-    y_bottom = y + h
+        mascara_quadrado = img_binary[y1:y2, x1:x2]
 
-    j = i + 1
-    while j < len(regiao_num):
-        x2, y2, w2, h2, roi2 = regiao_num[j]
+        contornos, hieraquia = cv2.findContours(mascara_quadrado, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
-        # horizontal gap between current merged box and next box
-        gap = x2 - x_end
+        contornos_validos = [c for c in contornos if cv2.contourArea(c) > 50]
 
-        # vertical overlap between current merged box and next box
-        vertical_overlap = min(y_bottom, y2 + h2) - max(y_top, y2)
+        if not contornos_validos:
+            continue
 
-        # use current merged height and width, not only original w/h
-        merged_w = x_end - x_start
-        merged_h = y_bottom - y_top
+        # Quando temos dois contornos válidos no mesmo quadrado
+        all_points = []
+        for c in contornos_validos:
+            all_points.extend(c.reshape(-1, 2))
 
-        # be more permissive: allow up to 0.6 of digit width as gap,
-        # and only require 30% vertical overlap
-        if gap < max(merged_w, w2) * 0.7 and vertical_overlap > 0.2 * min(merged_h, h2):
-            # expand current merged box
-            x_end = max(x_end, x2 + w2)
-            y_top = min(y_top, y2)
-            y_bottom = max(y_bottom, y2 + h2)
-            j += 1
-        else:
-            break
+        all_points = np.array(all_points)
 
-    regiao_unida = img_binary[y_top:y_bottom, x_start:x_end]
-    regioes_unidas.append((x_start, y_top, x_end - x_start, y_bottom - y_top, regiao_unida))
-    i = j
+        x_min = np.min(all_points[:, 0])
+        y_min = np.min(all_points[:, 1])
+        x_max = np.max(all_points[:, 0])
+        y_max = np.max(all_points[:, 1])
 
-# Fazer Match aos templates
-TARGET_SIZE = (60, 60)
+        # Verficar se de facto é suposto serem um número com dois digitos
+        margem = 5
+        x_min = max(0, x_min - margem)
+        y_min = max(0, y_min - margem)
+        x_max = min(mascara_quadrado.shape[1], x_max + margem)
+        y_max = min(mascara_quadrado.shape[0], y_max + margem)
 
-def normalize(img):
-    return cv2.resize(img, TARGET_SIZE, interpolation=cv2.INTER_NEAREST)
+        regiao = mascara_quadrado[y_min:y_max, x_min:x_max]
+
+        # Juntar ao bolo de todos os quadrados
+        regioes_unidas.append((
+            x1 + x_min,
+            y1 + y_min,
+            x_max - x_min,
+            y_max - y_min,
+            regiao
+        ))
+
+    
+def normalize(img, target_size=(60, 60)):
+    return cv2.resize(img, target_size, interpolation=cv2.INTER_AREA)
 
 detections = []
+sorted_templates = sorted(templates.items(), key=lambda x: int(x[0]))
 
-# Sort keys numerically descending, so 15,14,...,10 come first
-sorted_templates = sorted(templates.items(),reverse=True)
-
+# Debug
+"""
+for name in sorted_templates:
+    print(f"Template Name: {name}")
+"""
+ 
+# Fazer match entre os templates e as regiões obtidas
 for x, y, w, h, regiao in regioes_unidas:
     regiao_n = normalize(regiao)
+    _, regiao_n = cv2.threshold(regiao_n, 128, 255, cv2.THRESH_BINARY)
     
     # Default
     best_score = -1
@@ -126,13 +141,35 @@ for x, y, w, h, regiao in regioes_unidas:
 
     for label, temp in sorted_templates:
         temp_n = normalize(temp)
+        _, temp_n = cv2.threshold(temp_n, 128, 255, cv2.THRESH_BINARY)
 
         score = cv2.matchTemplate(regiao_n, temp_n, cv2.TM_CCOEFF_NORMED)[0][0]
+        
+        
+        # Debug nos match dos números
+        """
+        plt.figure(figsize=(4, 2))
+
+        plt.subplot(1, 2, 1)
+        plt.imshow(regiao_n, cmap='gray')
+        plt.title("ROI normalizada")
+        plt.axis("off")
+
+        plt.subplot(1, 2, 2)
+        plt.imshow(temp_n, cmap='gray')
+        plt.title(f"Template {label}")
+        plt.axis("off")
+
+        plt.suptitle(f"Score = {score:.3f}")
+        plt.tight_layout()
+        plt.show()
+        """
+        
         
         # Encontra Match
         if score > best_score:
             best_score = score
-            best_label = int(label)  # convert string to integer
+            best_label = int(label) 
 
     # Guarda o melhor match
     if best_score > 0.6:
@@ -146,61 +183,20 @@ for x, y, w, h, regiao in regioes_unidas:
             })
         
 
-# Non-maximum suppression globally over all detections
-def nms_global(detections, overlapThresh=0.3):
-    if not detections:
-        return []
-    boxes = np.array([[d["x"], d["y"], d["x"]+d["w"], d["y"]+d["h"], d["score"]] for d in detections], dtype=np.float32)
-    idxs = np.argsort(boxes[:, 4])[::-1]
-
-    pick = []
-    while len(idxs) > 0:
-        i = idxs[0]
-        pick.append(i)
-        suppress = [0]
-        for pos in range(1, len(idxs)):
-            j = idxs[pos]
-            xx1 = max(boxes[i, 0], boxes[j, 0])
-            yy1 = max(boxes[i, 1], boxes[j, 1])
-            xx2 = min(boxes[i, 2], boxes[j, 2])
-            yy2 = min(boxes[i, 3], boxes[j, 3])
-            w = max(0, xx2 - xx1)
-            h = max(0, yy2 - yy1)
-            inter = w * h
-            area_j = (boxes[j, 2] - boxes[j, 0]) * (boxes[j, 3] - boxes[j, 1])
-            if area_j == 0:
-                continue
-            overlap = inter / area_j
-            if overlap > overlapThresh:
-                suppress.append(pos)
-        idxs = np.delete(idxs, suppress)
-    final = []
-    for i in pick:
-        bx = boxes[i]
-        d = detections[i]
-        final.append({
-            "x": int(bx[0]),
-            "y": int(bx[1]),
-            "w": int(bx[2] - bx[0]),
-            "h": int(bx[3] - bx[1]),
-            "label": d["label"],
-            "score": d["score"]
-        })
-    return final
-
-final_boxes = nms_global(detections, overlapThresh=0.3)
-print(f"Detections after NMS: {len(final_boxes)}")
+final_boxes = detections
+print(f"DEBUG -- Total de deteções finais: {len(final_boxes)}")
 
 # Sort by reading order and build 4x4 matrix
 final_boxes_sorted = sorted(final_boxes, key=lambda d: (d["y"], d["x"]))
+
 labels = [int(d["label"]) for d in final_boxes_sorted]
 
 while len(labels) < 16:
     labels.append(-1)
+    
 matrix_4x4 = np.array(labels[:16]).reshape(4, 4)
 
-
-# Draw detections
+# Desenhar as deteções na imagem
 output = img.copy()
 for d in final_boxes_sorted:
     x, y, w, h, label = d["x"], d["y"], d["w"], d["h"], d["label"]
@@ -225,3 +221,21 @@ plt.tight_layout()
 plt.show()
 
 print("4x4 matrix of detected numbers:\n", matrix_4x4)
+
+# Guardar Imagem Output Final
+imagens_finais_folder = "imagens_finais"
+if not os.path.exists(imagens_finais_folder):
+    os.makedirs(imagens_finais_folder)
+
+# Ajuda a certificar de que não se guarda a mesma imagem duas vezes
+img_hash = hashlib.md5(output_rgb).hexdigest()
+
+file_path_output = os.path.join(imagens_finais_folder, f"imagem_final_{img_hash}.png")
+if os.path.exists(file_path_output):
+    print("DEBUG -- IMAGEM JÁ GUARDADA")
+    
+else:
+    cv2.imwrite(file_path_output, output_rgb)
+    
+print(f"DEBUG -- Imagem final guardada em: {file_path_output}")
+
