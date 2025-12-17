@@ -129,7 +129,8 @@ sorted_templates = sorted(templates.items(), key=lambda x: int(x[0]))
 for name in sorted_templates:
     print(f"Template Name: {name}")
 """
- 
+
+nums_matriz = []
 # Fazer match entre os templates e as regiões obtidas
 for x, y, w, h, regiao in regioes_unidas:
     regiao_n = normalize(regiao)
@@ -144,7 +145,6 @@ for x, y, w, h, regiao in regioes_unidas:
         _, temp_n = cv2.threshold(temp_n, 128, 255, cv2.THRESH_BINARY)
 
         score = cv2.matchTemplate(regiao_n, temp_n, cv2.TM_CCOEFF_NORMED)[0][0]
-        
         
         # Debug nos match dos números
         """
@@ -164,12 +164,12 @@ for x, y, w, h, regiao in regioes_unidas:
         plt.tight_layout()
         plt.show()
         """
-        
-        
+       
         # Encontra Match
         if score > best_score:
             best_score = score
-            best_label = int(label) 
+            best_label = int(label)
+            
 
     # Guarda o melhor match
     if best_score > 0.6:
@@ -181,6 +181,10 @@ for x, y, w, h, regiao in regioes_unidas:
             "label": best_label,
             "score": best_score
             })
+                
+    nums_matriz.append(best_label) 
+    # print(f"DEBUG -- Estado Atual da Matriz de Jogo:{nums_matriz}") 
+    
         
 
 final_boxes = detections
@@ -189,12 +193,14 @@ print(f"DEBUG -- Total de deteções finais: {len(final_boxes)}")
 # Sort by reading order and build 4x4 matrix
 final_boxes_sorted = sorted(final_boxes, key=lambda d: (d["y"], d["x"]))
 
-labels = [int(d["label"]) for d in final_boxes_sorted]
 
-while len(labels) < 16:
-    labels.append(-1)
-    
-matrix_4x4 = np.array(labels[:16]).reshape(4, 4)
+
+print(f"DEBUG -- Estado Atual da Matriz de Jogo:{nums_matriz}") 
+while len(nums_matriz) < 16:
+    nums_matriz.append(-1)
+
+matrix_4x4 = np.array(nums_matriz[:16]).reshape(4, 4)
+print("Tabuleiro de jogo da fotografia:\n", matrix_4x4)
 
 # Desenhar as deteções na imagem
 output = img.copy()
@@ -220,7 +226,6 @@ plt.axis("off")
 plt.tight_layout()
 plt.show()
 
-print("4x4 matrix of detected numbers:\n", matrix_4x4)
 
 # Guardar Imagem Output Final
 imagens_finais_folder = "imagens_finais"
