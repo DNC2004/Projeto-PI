@@ -1,4 +1,4 @@
-# Projeto de Processamento de Imagem
+# 🧩 Projeto de Processamento de Imagem
 
 O projeto consiste numa aplição em Python que dada uma fotografia de um tabuleiro de jogo 4x4, numerado de 1 a 15:
 
@@ -17,6 +17,7 @@ A partir desta vamos retirar os números presentes no tabuleiro, bem como a sua 
    
 ## 🛠️ Tecnologias
 * **Linguagem:** Python 3.10+
-* PyTorch
-* Spyder
+* **Visão Computacional:** OpenCV
+* **Deep Learning:** PyTorch
+* **IDE:** Spyder e VsCode
 ---
