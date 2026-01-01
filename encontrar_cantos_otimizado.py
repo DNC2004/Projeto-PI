@@ -1,18 +1,8 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Tue Nov 11 11:55:49 2025
-
-@author: dinis
-"""
-
-## MELHORAR O ALGORITMO PARA DAR PARA QUALQUER FOTOGRAFIA
-## UTilizar a segmentação por vermelhos e brancos em vez do cinzento
-## PERCEBER A SITUATION
-
 import numpy as np
 import matplotlib.pyplot as plt
 import cv2
 
+# Encontra o tabuleiro de jogo na fotografia
 caminho_img = 'Imagens/jogo_stor.jpg' # Não funciona
 #caminho_img = 'Imagens/jogo_distorced.jpg' ## ATUAL / Funciona Tudo
 #caminho_img = 'Imagens/jogo_perp.jpeg' # Funciona Tudo
@@ -25,7 +15,6 @@ caminho_img = 'Imagens/jogo_stor.jpg' # Não funciona
 img = cv2.imread(caminho_img)
 
 #Preparar Imagem
-
 img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 escala = 1200 / max(img_rgb.shape[:2])
 img_rgb = cv2.resize(img_rgb, None, fx=escala, fy=escala, interpolation=cv2.INTER_AREA)
