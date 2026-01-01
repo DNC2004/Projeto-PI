@@ -176,6 +176,7 @@ model = DigitCNN().to(device)
 criterion = nn.CrossEntropyLoss()
 optimizer = optim.Adam(model.parameters(), lr=1e-3)
 
+
 # ============================================================
 # TRAIN ONCE / LOAD MODEL
 # ============================================================
@@ -184,12 +185,17 @@ if os.path.exists(MODEL_PATH):
     print("DEBUG -- Loading trained CNN...")
     model.load_state_dict(torch.load(MODEL_PATH, map_location=device))
     model.eval()
+    
+    for x, y in train_loader:
+        out = model(x)             # get predictions for this batch
+        print("DEBUG -- Predicted classes:", out.argmax(1))  # should include 0–15
+        break 
     SKIP_TRAINING = True
 else:
     SKIP_TRAINING = False
 
 if not SKIP_TRAINING:
-    for epoch in range(6):  # fewer epochs for CPU
+    for epoch in range(30):  # fewer epochs for CPU
         model.train()
         total_loss = 0
         for x, y in train_loader:
@@ -264,14 +270,17 @@ for x, y, w, h, regiao, contornos in regioes_unidas:
     for c in contornos:
         cx, cy, cw, ch = cv2.boundingRect(c)
         roi = regiao[cy:cy+ch, cx:cx+cw]
+
         label, conf = cnn_predict(roi)
         print(f"DEBUG -- Conf: {conf} | Label: {label}")
-        if conf < 0.4:
+        if conf < 0.6:
             label = -1
+            
         cell_digits.append(label if label != -1 else 0)  # 0 for empty
 
     # Sort left to right
     cell_digits.sort()
+    cell_digits = cell_digits[:2]  # only take the first 2 digits
 
     # Merge digits if more than one
     if len(cell_digits) == 1:
