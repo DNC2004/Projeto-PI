@@ -8,29 +8,42 @@ import hashlib
 image_path = 'imagem_final.png'
 img = cv2.imread(image_path)
 if img is None:
-    raise FileNotFoundError("Could not load main image.")
+    raise FileNotFoundError(f"A imagem '{image_path}' não existe...")
 
+# Debug
 output_folder = "imagens_teste"
 if not os.path.exists(output_folder):
     os.makedirs(output_folder)
 
-
 img_teste = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 file_path = os.path.join(output_folder, "imagem_teste.png")
 cv2.imwrite(file_path, img_teste)
+# END
 
 img_h, img_w = img.shape[:2]
 
 # Extract digits via HSV mask (gold color)
 img_hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+h = img_hsv[:, :, 0]
+s = img_hsv[:, :, 1]
+v = img_hsv[:, :, 2]
+
+# Debug
+print(f"DEBUG -- Valores de HSV da imagem:\nH:{h.mean()}\nS:{s.mean()}\nV:{v.mean()}")
 file_path = os.path.join(output_folder, "imagem_teste_hsv.png")
 cv2.imwrite(file_path, img_hsv)
+# END
 
+if v.mean() > 190: # Solução temporária para a imagem com os brancos mais claros funcionar
+    lower_gold = np.array([20, 60, 75], np.uint8)
+    upper_gold = np.array([65, 255, 255], np.uint8)
+    gold_mask = cv2.inRange(img_hsv, lower_gold, upper_gold)
 
-#Mascaras Para deter os nums / FUNCIONA!
-lower_gold = np.array([10, 60, 30], np.uint8)
-upper_gold = np.array([150,255, 255], np.uint8)
-gold_mask = cv2.inRange(img_hsv, lower_gold, upper_gold)
+else:
+    #Mascaras Para deter os nums / FUNCIONA!
+    lower_gold = np.array([10, 60, 30], np.uint8)
+    upper_gold = np.array([150,255, 255], np.uint8)
+    gold_mask = cv2.inRange(img_hsv, lower_gold, upper_gold)
 
 kernel = np.ones((4, 4), np.uint8)
 
@@ -39,9 +52,10 @@ gold_mask = cv2.dilate(gold_mask, kernel, iterations=1)
 
 # Imagem 
 img_binary = gold_mask.copy()
+# Debug
 file_path = os.path.join(output_folder, "imagem_teste_binaria.png")
 cv2.imwrite(file_path, img_binary)
-
+# END
 
 # Load dos templates 
 templates = {}
