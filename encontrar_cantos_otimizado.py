@@ -4,11 +4,11 @@ import cv2
 
 # Encontra o tabuleiro de jogo na fotografia
 #caminho_img = 'Imagens/jogo_stor.jpg' # Não funciona
-caminho_img = 'Imagens/jogo_distorced.jpg' ## ATUAL / Funciona Tudo
+#caminho_img = 'Imagens/jogo_distorced.jpg' ## ATUAL / Funciona Tudo
 #caminho_img = 'Imagens/jogo_perp.jpeg' # Funciona Tudo
 #caminho_img = 'Imagens/jogo_blackgorund.jpg' # Funciona Tudo
 #caminho_img = 'Imagens/jogo_scuro.jpg'  # Funciona Tudo
-#caminho_img = 'Imagens/jogo_purp.jpg' # Funciona Tudo
+caminho_img = 'Imagens/jogo_purp.jpg' # Funciona Tudo
 #caminho_img = 'Imagens/jogo_red.jpg' # Funciona Tudo
 
 
