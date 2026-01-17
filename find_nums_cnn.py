@@ -5,6 +5,9 @@ import cv2
 import numpy as np
 import random
 from uuid import uuid4
+from torchvision import transforms
+from torchvision.datasets import MNIST
+
 
 try:
     import torch 
@@ -68,84 +71,47 @@ img_binary = gold_mask.copy()
 cv2.imwrite(os.path.join(output_folder, "imagem_teste_binaria.png"), img_binary)
 
 # ============================================================
-# TEMPLATE DATASET GENERATION (only if not exists)
-# ============================================================
-if not os.path.exists("dataset/train"):
-    print("DEBUG -- Generating dataset...")
-
-    templates = {}
-    for i in range(1, 16):
-        path = f"../templates/mask{i}.png"
-        img_t = cv2.imread(path, cv2.IMREAD_GRAYSCALE)
-        _, img_t = cv2.threshold(img_t, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-        templates[i] = img_t
-
-    def augment(img):
-        scale = random.uniform(0.8, 1.2)
-        img = cv2.resize(img, None, fx=scale, fy=scale)
-        dx = random.randint(-5, 5)
-        dy = random.randint(-5, 5)
-        M = np.float32([[1, 0, dx], [0, 1, dy]])
-        img = cv2.warpAffine(img, M, (img.shape[1], img.shape[0]), borderValue=0)
-        angle = random.uniform(-15, 15)
-        M = cv2.getRotationMatrix2D((img.shape[1]//2, img.shape[0]//2), angle, 1)
-        img = cv2.warpAffine(img, M, (img.shape[1], img.shape[0]), borderValue=0)
-        if random.random() < 0.5:
-            img = cv2.erode(img, np.ones((2,2), np.uint8))
-        else:
-            img = cv2.dilate(img, np.ones((2,2), np.uint8))
-        img = cv2.resize(img, (60, 60))
-        return img
-
-    os.makedirs("dataset", exist_ok=True)
-
-    # Single-digit dataset
-    for label, template in templates.items():
-        class_dir = f"dataset/{label}"
-        os.makedirs(class_dir, exist_ok=True)
-        for _ in range(1000):
-            cv2.imwrite(f"{class_dir}/{uuid4().hex}.png", augment(template))
-
-    # Empty class
-    empty_dir = "dataset/0"
-    os.makedirs(empty_dir, exist_ok=True)
-    for _ in range(1500):
-        noise = np.zeros((60, 60), dtype=np.uint8)
-        cv2.imwrite(f"{empty_dir}/{uuid4().hex}.png", noise)
-
-    # Split train/val
-    for label in os.listdir("dataset"):
-        imgs = os.listdir(f"dataset/{label}")
-        train, val = train_test_split(imgs, test_size=0.2)
-        for split, files in [("train", train), ("val", val)]:
-            os.makedirs(f"dataset/{split}/{label}", exist_ok=True)
-            for f in files:
-                shutil.move(f"dataset/{label}/{f}", f"dataset/{split}/{label}/{f}")
-else:
-    print("DEBUG -- Dataset already exists, skipping generation")
-
-# ============================================================
 # CNN PREPROCESSING
 # ============================================================
+mnist_transform = transforms.Compose([
+    transforms.ToTensor(), 
+    transforms.Normalize((0.5,), (0.5,))
+])
+
+train_ds = MNIST(
+    root="mnist_data",
+    train=True,
+    download=True,
+    transform=mnist_transform
+)
+
+val_ds = MNIST(
+    root="mnist_data",
+    train=False,
+    download=True,
+    transform=mnist_transform
+)
+
+train_loader = DataLoader(train_ds, batch_size=64, shuffle=True)
+val_loader   = DataLoader(val_ds, batch_size=64, shuffle=False)
+
+
+
+
 def preprocess_for_cnn(img):
     if img.ndim == 3:
         img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    _, img = cv2.threshold(img, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-    img = cv2.resize(img, (60, 60))
+
+    img = 255 - img
+    
+    img = cv2.resize(img, (28, 28))
     img = img.astype(np.float32) / 255.0
+
+    # MNIST-like normalization
+    img = (img - 0.5) / 0.5
+
     return torch.from_numpy(img).unsqueeze(0)
 
-class CNNTransform:
-    def __call__(self, img):
-        img = np.array(img)
-        return preprocess_for_cnn(img)
-
-transform = CNNTransform()
-
-train_ds = datasets.ImageFolder("dataset/train", transform=transform)
-val_ds   = datasets.ImageFolder("dataset/val", transform=transform)
-train_loader = DataLoader(train_ds, batch_size=32, shuffle=True)
-val_loader   = DataLoader(val_ds, batch_size=32, shuffle=False)
 
 # ============================================================
 # CNN MODEL
@@ -163,10 +129,10 @@ class DigitCNN(nn.Module):
         )
         self.classifier = nn.Sequential(
             nn.Flatten(),
-            nn.Linear(128 * 7 * 7, 128),
+            nn.Linear(128 * 3 * 3, 128),
             nn.ReLU(),
             nn.Dropout(0.4),
-            nn.Linear(128, 16)  # 0=empty, 1–15=digits
+            nn.Linear(128, 10)  # 1 -- 9
         )
     def forward(self, x):
         return self.classifier(self.features(x))
@@ -215,11 +181,12 @@ if not SKIP_TRAINING:
 def cnn_predict(roi):
     tensor = preprocess_for_cnn(roi).unsqueeze(0).to(device)
     with torch.no_grad():
-        probs = F.softmax(model(tensor), dim=1)[0]
-        label = probs.argmax().item()
-        confidence = probs[label].item()
-    if label == 0:
-        return -1, confidence
+        logits = model(tensor)
+        probs = F.softmax(logits, dim=1)[0]
+
+    label = probs.argmax().item()
+    confidence = probs[label].item()
+
     return label, confidence
 
 # ============================================================
@@ -262,32 +229,45 @@ nums_matriz = []
 
 for x, y, w, h, regiao, contornos in regioes_unidas:
     if regiao is None or len(contornos) == 0:
-        nums_matriz.append(-1)
+        nums_matriz.append(0)
         continue
 
     # Predict each contour in the cell
     cell_digits = []
     for c in contornos:
+        area = cv2.contourArea(c)
+        if area < 50:
+            continue
+
         cx, cy, cw, ch = cv2.boundingRect(c)
         roi = regiao[cy:cy+ch, cx:cx+cw]
 
+        if roi.size == 0 or roi.shape[0] < 5 or roi.shape[1] < 5:
+            continue
+
         label, conf = cnn_predict(roi)
-        print(f"DEBUG -- Conf: {conf} | Label: {label}")
-        if conf < 0.6:
-            label = -1
-            
-        cell_digits.append(label if label != -1 else 0)  # 0 for empty
+
+        if conf < 0.7:
+            continue
+
+        cell_digits.append((cx, label))
 
     # Sort left to right
-    cell_digits.sort()
-    cell_digits = cell_digits[:2]  # only take the first 2 digits
+    # cell_digits = [(cx, label), ...]
 
-    # Merge digits if more than one
-    if len(cell_digits) == 1:
-        nums_matriz.append(cell_digits[0])
+    cell_digits.sort(key=lambda x: x[0])  # left → right
+    digits = [d for _, d in cell_digits][:2]
+
+    if len(digits) == 0:
+        nums_matriz.append(-1)
+
+    elif len(digits) == 1:
+        nums_matriz.append(int(digits[0]))
+
     else:
-        merged = int("".join(str(d) for d in cell_digits))
-        nums_matriz.append(merged)
+        nums_matriz.append(int(f"{digits[0]}{digits[1]}"))
+
+
 
 # Fill remaining empty cells to 16 entries
 while len(nums_matriz) < 16:
