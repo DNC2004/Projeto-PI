@@ -3,12 +3,12 @@ import matplotlib.pyplot as plt
 import cv2
 
 # Encontra o tabuleiro de jogo na fotografia
-#caminho_img = 'Imagens/jogo_stor.jpg' # Não funciona
+caminho_img = 'Imagens/jogo_stor.jpg' # Funciona tudo
 #caminho_img = 'Imagens/jogo_distorced.jpg' ## ATUAL / Funciona Tudo
 #caminho_img = 'Imagens/jogo_perp.jpeg' # Funciona Tudo
 #caminho_img = 'Imagens/jogo_blackgorund.jpg' # Funciona Tudo
 #caminho_img = 'Imagens/jogo_scuro.jpg'  # Funciona Tudo
-caminho_img = 'Imagens/jogo_purp.jpg' # Funciona Tudo
+#caminho_img = 'Imagens/jogo_purp.jpg' # Funciona Tudo
 #caminho_img = 'Imagens/jogo_red.jpg' # Funciona Tudo
 
 
@@ -212,20 +212,43 @@ plt.imshow(mask_red, cmap="gray")
 plt.title("Máscara Vermelha")
 plt.axis("off")
 
+"""
+## DEBUG
+red_export = cv2.cvtColor(mask_red, cv2.COLOR_BGR2RGB)
+cv2.imwrite("masc_red.png", red_export)
+"""
+
 plt.subplot(2, 4, 3)
 plt.imshow(mask_white, cmap="gray")
 plt.title("Máscara Branca")
 plt.axis("off")
+
+"""
+## DEBUG
+white_export = cv2.cvtColor(mask_white, cv2.COLOR_BGR2RGB)
+cv2.imwrite("masc_white.png", white_export)
+"""
+
 
 plt.subplot(2, 4, 4)
 plt.imshow(mask_tiles_touch)
 plt.title("Área de Jogo")
 plt.axis("off")
 
+"""
+area_jogo = cv2.cvtColor(mask_tiles_touch, cv2.COLOR_BGR2RGB)
+cv2.imwrite("area_jogo.png", area_jogo)
+"""
+
 plt.subplot(2, 4, 5)
 plt.imshow(mask_refinada)
 plt.title("Área de jogo rough")
 plt.axis("off")
+
+"""
+area_jogo_dura = cv2.cvtColor(mask_refinada, cv2.COLOR_BGR2RGB)
+cv2.imwrite("area_jogo_dura.png", area_jogo_dura)
+"""
 
 plt.subplot(2, 4, 6)
 # Overlay with intersections
@@ -243,15 +266,30 @@ plt.imshow(output)
 plt.title("Overlay com interseções")
 plt.axis("off")
 
+"""
+cantos_export = cv2.cvtColor(output, cv2.COLOR_BGR2RGB)
+cv2.imwrite("cantos_find.png", cantos_export)
+"""
+
 plt.subplot(2, 4, 7)
 plt.imshow(masked_img)
 plt.title("Imagem Original Apenas Área Detectada")
 plt.axis("off")
 
+"""
+img_final_area = cv2.cvtColor(masked_img, cv2.COLOR_BGR2RGB)
+cv2.imwrite("img_final_area.png", img_final_area)
+"""
+
 plt.subplot(2, 4, 8)
 plt.imshow(warped_tight)
 plt.title("Imagem Final Warp sem Bordas")
 plt.axis("off")
+
+"""
+img_final_warp = cv2.cvtColor(warped_tight, cv2.COLOR_BGR2RGB)
+cv2.imwrite("img_final_warp.png", img_final_warp)
+"""
 
 plt.tight_layout()
 plt.show()
