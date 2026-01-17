@@ -161,7 +161,7 @@ for x, y, w, h, regiao in regioes_unidas:
     
     # Verifica se o quadrado é vazio (Assegura que fica bem marcado na matriz final)
     if regiao is None:
-        best_label = -1
+        best_label = 0
         nums_matriz.append(best_label) 
         continue
     
@@ -205,7 +205,7 @@ for x, y, w, h, regiao in regioes_unidas:
     
     # Quadrado que não está vazio o suficiente para ser apanhado anteriormente
     if best_score < 0.4:
-        best_label = -1
+        best_label = 0
 
     # Guarda o melhor match
     else:
@@ -230,7 +230,7 @@ final_boxes_sorted = sorted(final_boxes, key=lambda d: (d["y"], d["x"]))
 
 print(f"DEBUG -- Estado Atual da Matriz de Jogo:{nums_matriz}") 
 while len(nums_matriz) < 16:
-    nums_matriz.append(-1)
+    nums_matriz.append(0)
 
 matrix_4x4 = np.array(nums_matriz[:16]).reshape(4, 4)
 print("Tabuleiro de jogo da fotografia:\n", matrix_4x4)
@@ -250,7 +250,7 @@ plt.subplot(1,2,1)
 plt.imshow(img_binary, cmap='gray')
 plt.title("Nums Detetados")
 plt.axis("off")
-
+ 
 plt.subplot(1,2,2)
 plt.imshow(output_rgb)
 plt.title("Num Detetados Imagem Real")
