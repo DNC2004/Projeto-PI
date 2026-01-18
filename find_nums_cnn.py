@@ -96,14 +96,7 @@ train_loader = DataLoader(train_ds, batch_size=64, shuffle=True)
 val_loader   = DataLoader(val_ds, batch_size=64, shuffle=False)
 
 
-
-
 def preprocess_for_cnn(img):
-    if img.ndim == 3:
-        img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-
-    img = 255 - img
-    
     img = cv2.resize(img, (28, 28))
     img = img.astype(np.float32) / 255.0
 
@@ -161,7 +154,7 @@ else:
     SKIP_TRAINING = False
 
 if not SKIP_TRAINING:
-    for epoch in range(30):  # fewer epochs for CPU
+    for epoch in range(10):  # fewer epochs for CPU
         model.train()
         total_loss = 0
         for x, y in train_loader:
