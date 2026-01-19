@@ -30,7 +30,7 @@ h = img_hsv[:, :, 0]
 s = img_hsv[:, :, 1]
 v = img_hsv[:, :, 2]
 
-# DEBUG - Obter os valor HSV da imagem
+# DEBUG - Obter os valores HSV da imagem
 print(f"DEBUG -- Valores de HSV da imagem:\nH:{h.mean()}\nS:{s.mean()}\nV:{v.mean()}")
 file_path = os.path.join(output_folder, "imagem_teste_hsv.png")
 cv2.imwrite(file_path, img_hsv)
@@ -45,7 +45,6 @@ if v.mean() > 190: # Imagens com a cor branca muito clara -- Imagem x
     gold_mask = cv2.inRange(img_hsv, lower_gold, upper_gold)
 
 else: # Restantes Imagens
-    #Mascaras Para deter os nums / FUNCIONA!
     lower_gold = np.array([10, 60, 30], np.uint8)
     upper_gold = np.array([150,255, 255], np.uint8)
     gold_mask = cv2.inRange(img_hsv, lower_gold, upper_gold)
@@ -86,7 +85,7 @@ print("DEBUG -- Templates Carregados:", templates.keys())
 cell_h = img_binary.shape[0] // 4
 cell_w = img_binary.shape[1] // 4
 
-# Filtrar contornos válidos, remove ruído 
+# Detetar contornos externos
 contornos, _ = cv2.findContours(img_binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE) 
 
 # Debug quadrados vazios
@@ -97,11 +96,14 @@ quadrados_vazios = 0
 regioes_unidas = []
 for row in range(4):
     for col in range(4):
+        
+        # Coordenadas atuais
         y1 = row * cell_h
         y2 = (row + 1) * cell_h
         x1 = col * cell_w
         x2 = (col + 1) * cell_w
 
+        # Máscara binária do quadrado em questão
         mascara_quadrado = img_binary[y1:y2, x1:x2]
         contornos, _ = cv2.findContours(mascara_quadrado, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         # print(f"DEBUG -- Contorno Detatado:{len(contornos)}")
@@ -120,26 +122,26 @@ for row in range(4):
             continue
         
         all_points = []
-        ## COMENTAR MELHOR ESTE BLOCO todo
-        
         # Quando temos dois contornos válidos no mesmo quadrado
         for c in contornos:
             all_points.extend(c.reshape(-1, 2))
 
         all_points = np.array(all_points)
 
+        # Encontrar a região minima que englobe os dois contornos
         x_min = np.min(all_points[:, 0])
         y_min = np.min(all_points[:, 1])
         x_max = np.max(all_points[:, 0])
         y_max = np.max(all_points[:, 1])
 
-        # Verficar se de facto é suposto serem um número com dois digitos
+        # Expande a bounding box para garantir os números com dois dígitos
         margem = 5
         x_min = max(0, x_min - margem)
         y_min = max(0, y_min - margem)
         x_max = min(mascara_quadrado.shape[1], x_max + margem)
         y_max = min(mascara_quadrado.shape[0], y_max + margem)
 
+        # Região final com o número de dois dígitos
         regiao = mascara_quadrado[y_min:y_max, x_min:x_max]
 
         # Juntar ao bolo de todos os quadrados
@@ -152,6 +154,7 @@ for row in range(4):
         ))
 
 
+# Normalizar a região para o template matching
 def normalize(img, target_size=(60, 60)):
     return cv2.resize(img, target_size, interpolation=cv2.INTER_AREA)
 
@@ -174,7 +177,7 @@ for x, y, w, h, regiao in regioes_unidas:
         nums_matriz.append(best_label) 
         continue
     
-    # Quadrado ñ Vazio
+    # Quadrado não Vazio
     else:
         regiao_n = normalize(regiao)
         _, regiao_n = cv2.threshold(regiao_n, 128, 255, cv2.THRESH_BINARY)
@@ -212,7 +215,7 @@ for x, y, w, h, regiao in regioes_unidas:
     
     print(f"DEBUG -- Melhor Score:{best_score} | Melhor Label: {best_label}")
     
-    # Quadrado que não está vazio o suficiente para ser apanhado anteriormente
+    # Região com score insuficiente -- considerado vazio
     if best_score < 0.4:
         best_label = 0
 
