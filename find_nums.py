@@ -282,14 +282,15 @@ def nums_template_match(image_path):
         os.makedirs(imagens_finais_folder)
 
     # Ajuda a certificar de que não se guarda a mesma imagem duas vezes
-    img_hash = hashlib.md5(output_rgb).hexdigest()
+    output_bgr = cv2.cvtColor(output_rgb, cv2.COLOR_RGB2BGR)
+    img_hash = hashlib.md5(output_bgr).hexdigest()
 
     file_path_output = os.path.join(imagens_finais_folder, f"imagem_final_{img_hash}.png")
     if os.path.exists(file_path_output):
         print("DEBUG -- IMAGEM JÁ GUARDADA")
         
     else:
-        cv2.imwrite(file_path_output, output_rgb)
+        cv2.imwrite(file_path_output, output_bgr)
         
     print(f"DEBUG -- Imagem final guardada em: {file_path_output}")
 
