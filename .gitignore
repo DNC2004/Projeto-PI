@@ -7,3 +7,4 @@ digit_cnn.pth
 debug_roi.png
 /mnist_data
 /__pycache__
+cnn.py
