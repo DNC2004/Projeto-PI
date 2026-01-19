@@ -4,13 +4,15 @@ import cv2
 import os
 import hashlib
 
-# Load main image / FUNCIONA!
+""" 1. PRÉ-PROCESSAMENTO """
+
+# Load main image
 image_path = 'imagem_final.png'
 img = cv2.imread(image_path)
 if img is None:
     raise FileNotFoundError(f"A imagem '{image_path}' não existe...")
 
-# Debug
+# DEBUG -- Guardar imagens obtidas no pré-processamento
 output_folder = "imagens_teste"
 if not os.path.exists(output_folder):
     os.makedirs(output_folder)
@@ -18,28 +20,31 @@ if not os.path.exists(output_folder):
 img_teste = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 file_path = os.path.join(output_folder, "imagem_teste.png")
 cv2.imwrite(file_path, img_teste)
-# END
+# END DEBUG 
 
 img_h, img_w = img.shape[:2]
 
-# Extract digits via HSV mask (gold color)
+# Converter a imagem em HSV para segmentar o dourado
 img_hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
 h = img_hsv[:, :, 0]
 s = img_hsv[:, :, 1]
 v = img_hsv[:, :, 2]
 
-# Debug
+# DEBUG - Obter os valor HSV da imagem
 print(f"DEBUG -- Valores de HSV da imagem:\nH:{h.mean()}\nS:{s.mean()}\nV:{v.mean()}")
 file_path = os.path.join(output_folder, "imagem_teste_hsv.png")
 cv2.imwrite(file_path, img_hsv)
-# END
+# END DEBUG
 
-if v.mean() > 190: # Solução temporária para a imagem com os brancos mais claros funcionar
+
+# Escolher as máscaras
+
+if v.mean() > 190: # Imagens com a cor branca muito clara -- Imagem x
     lower_gold = np.array([20, 60, 75], np.uint8)
     upper_gold = np.array([65, 255, 255], np.uint8)
     gold_mask = cv2.inRange(img_hsv, lower_gold, upper_gold)
 
-else:
+else: # Restantes Imagens
     #Mascaras Para deter os nums / FUNCIONA!
     lower_gold = np.array([10, 60, 30], np.uint8)
     upper_gold = np.array([150,255, 255], np.uint8)
@@ -50,21 +55,26 @@ kernel = np.ones((4, 4), np.uint8)
 gold_mask = cv2.morphologyEx(gold_mask, cv2.MORPH_CLOSE, kernel, iterations=2)
 gold_mask = cv2.dilate(gold_mask, kernel, iterations=1)
 
-# Imagem 
 img_binary = gold_mask.copy()
-# Debug
+
+# DEBUG -- Guardar a imagem binária gerada
 file_path = os.path.join(output_folder, "imagem_teste_binaria.png")
 cv2.imwrite(file_path, img_binary)
-# END
+# END DEBUG
 
-# Load dos templates 
+
+""" 2. TEMPLATE MATCHING """
+
+# Carregar os templates
 templates = {}
 for i in range(1, 16):
     path = f"../templates/mask{i}.png"
     temp = cv2.imread(path, cv2.IMREAD_GRAYSCALE)
+    
     if temp is None:
         print(f"Could not load template {path}")
         continue
+    
     _, temp_bin = cv2.threshold(temp, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
     temp_bin = cv2.morphologyEx(temp_bin, cv2.MORPH_CLOSE, kernel, iterations=1)
     temp_bin = cv2.dilate(temp_bin, kernel, iterations=1)
@@ -72,12 +82,12 @@ for i in range(1, 16):
 
 print("DEBUG -- Templates Carregados:", templates.keys())
 
-# Dividir a imagem nos quadrados de cada número
+# Dividir a imagem em 16 quadrados
 cell_h = img_binary.shape[0] // 4
 cell_w = img_binary.shape[1] // 4
 
-# Filtrar contornos válidos (remove ruído) 
-contornos, hieraquia = cv2.findContours(img_binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE) 
+# Filtrar contornos válidos, remove ruído 
+contornos, _ = cv2.findContours(img_binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE) 
 
 # Debug quadrados vazios
 quadrados_vazios = 0
@@ -93,23 +103,25 @@ for row in range(4):
         x2 = (col + 1) * cell_w
 
         mascara_quadrado = img_binary[y1:y2, x1:x2]
-        contornos, hieraquia = cv2.findContours(mascara_quadrado, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        contornos, _ = cv2.findContours(mascara_quadrado, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         # print(f"DEBUG -- Contorno Detatado:{len(contornos)}")
         
-        # Lidar com quadrados vazios
+        # Quando o quadrado está vazio
         if len(contornos) == 0:
             regioes_unidas.append((
             x1, y1,
             cell_w, cell_h,
             None  # Assinala a região como vazia -- Utilizado no matching
             ))
-            # Debug quadrados vazios
+            
+            # DEBUG -- Contar os quadrados vazios
             quadrados_vazios += 1
             print("DEBUG -- Quadrados vazios:", quadrados_vazios)
             continue
         
         all_points = []
         ## COMENTAR MELHOR ESTE BLOCO todo
+        
         # Quando temos dois contornos válidos no mesmo quadrado
         for c in contornos:
             all_points.extend(c.reshape(-1, 2))
@@ -146,17 +158,14 @@ def normalize(img, target_size=(60, 60)):
 detections = []
 sorted_templates = sorted(templates.items(), key=lambda x: int(x[0]))
 
-# Debug
-"""
-for name in sorted_templates:
-    print(f"Template Name: {name}")
-"""
 
 nums_matriz = []
+
 # Fazer match entre os templates e as regiões obtidas
 for x, y, w, h, regiao in regioes_unidas:
+    
     # Default
-    best_score = -1
+    best_score = 0
     best_label = None
     
     # Verifica se o quadrado é vazio (Assegura que fica bem marcado na matriz final)
@@ -221,7 +230,7 @@ for x, y, w, h, regiao in regioes_unidas:
     nums_matriz.append(best_label) 
     # print(f"DEBUG -- Estado Atual da Matriz de Jogo:{nums_matriz}") 
     
-
+# DEBUG -- Quantidade de deteções totais, tem de ser igual a 15
 final_boxes = detections
 print(f"DEBUG -- Total de deteções finais: {len(final_boxes)}")
 
@@ -229,11 +238,16 @@ print(f"DEBUG -- Total de deteções finais: {len(final_boxes)}")
 final_boxes_sorted = sorted(final_boxes, key=lambda d: (d["y"], d["x"]))
 
 print(f"DEBUG -- Estado Atual da Matriz de Jogo:{nums_matriz}") 
+
+# No caso de existir um espaço na matriz sem nenhum valor
 while len(nums_matriz) < 16:
     nums_matriz.append(0)
 
 matrix_4x4 = np.array(nums_matriz[:16]).reshape(4, 4)
 print("Tabuleiro de jogo da fotografia:\n", matrix_4x4)
+
+
+""" 3. PLOTS FINAIS"""
 
 # Desenhar as deteções na imagem
 output = img.copy()
