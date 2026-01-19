@@ -66,7 +66,7 @@ def nums_template_match(image_path):
     # Carregar os templates
     templates = {}
     for i in range(1, 16):
-        path = f"../templates/mask{i}.png"
+        path = f"/Users/jfeiteira/Desktop/jfworks_pratico/Processamento_Imagem/Projeto-PI/templates/mask{i}.png"
         temp = cv2.imread(path, cv2.IMREAD_GRAYSCALE)
         
         if temp is None:
