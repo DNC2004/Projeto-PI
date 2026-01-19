@@ -34,7 +34,7 @@ class GameBoardApp(tk.Tk):
             *IMAGE_PATHS.keys(), command=self.load_image
         ).pack()
 
-        ttk.Button(self, text="Executar deteção", command=self.run_detection).pack(pady=10)
+        ttk.Button(self, text="Executar deteção Template Matching", command=self.run_detection).pack(pady=10)   
         self.image_label = ttk.Label(self)
         self.image_label.pack(pady=10)
         self.load_image(self.selected_key.get())
