@@ -12,8 +12,8 @@ A partir desta vamos retirar os números presentes no tabuleiro, bem como a sua 
 1. Obter uma imagem com apenas o tabuleiro de jogo ✅
 2. Realizar o *template matching* ✅
 3. Obter a matriz do tabuleiro de jogo da fotografia ✅
-4. Construir a *CNN* ⏳
-5. Repetir a **etapa 3** ⏳
+4. Construir a *CNN* ✅
+5. Repetir a **etapa 3** ✅
    
 ## 🛠️ Tecnologias
 * **Linguagem:** Python 3.10+
@@ -21,3 +21,5 @@ A partir desta vamos retirar os números presentes no tabuleiro, bem como a sua 
 * **Deep Learning:** PyTorch
 * **IDE:** Spyder e VsCode
 ---
+
+Atualizado a: 19/01/2026
