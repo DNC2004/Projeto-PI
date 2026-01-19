@@ -3,15 +3,12 @@ import sys
 import os
 import cv2
 import numpy as np
-import random
-from uuid import uuid4
 from torchvision import transforms
-from torchvision.datasets import MNIST
+import torchvision.datasets as datasets
 
 
 try:
     import torch 
-    import torchvision
 except ImportError:
     print("\nDEBUG -- Bibliotecas não encontradas...")
     try:
@@ -26,17 +23,8 @@ import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
-import torchvision.datasets as datasets
-import shutil
-from sklearn.model_selection import train_test_split
 
-# ============================================================
-# Check and import PyTorch / torchvision
-# ============================================================
-
-# ============================================================
-# IMAGE LOADING / MASKS (UNCHANGED)
-# ============================================================
+# Transformar a imagem em binária -- Igual ao template matching
 image_path = 'imagem_final.png'
 img = cv2.imread(image_path)
 if img is None:
@@ -70,65 +58,65 @@ gold_mask = cv2.dilate(gold_mask, kernel, iterations=1)
 img_binary = gold_mask.copy()
 cv2.imwrite(os.path.join(output_folder, "imagem_teste_binaria.png"), img_binary)
 
-# ============================================================
-# CNN PREPROCESSING
-# ============================================================
+""" 1. PRÉ-PROCESSAMENTO """
+
+# Base de dados MNIST
 mnist_transform = transforms.Compose([
     transforms.ToTensor(), 
     transforms.Normalize((0.5,), (0.5,))
 ])
 
-train_ds = MNIST(
-    root="mnist_data",
-    train=True,
-    download=True,
-    transform=mnist_transform
-)
+train_dataset = datasets.MNIST( root="dataset/", train=True, transform=transforms.ToTensor(), download=True)
+test_dataset = datasets.MNIST(root="dataset/", train=False, transform=transforms.ToTensor(), download=True)
 
-val_ds = MNIST(
-    root="mnist_data",
-    train=False,
-    download=True,
-    transform=mnist_transform
-)
-
-train_loader = DataLoader(train_ds, batch_size=64, shuffle=True)
-val_loader   = DataLoader(val_ds, batch_size=64, shuffle=False)
+train_loader = DataLoader(dataset=train_dataset, batch_size=64, shuffle=True)
+val_loader = DataLoader(dataset=test_dataset, batch_size=64, shuffle=False)
 
 
 def preprocess_for_cnn(img):
     img = cv2.resize(img, (28, 28))
     img = img.astype(np.float32) / 255.0
-
-    # MNIST-like normalization
     img = (img - 0.5) / 0.5
 
     return torch.from_numpy(img).unsqueeze(0)
 
 
-# ============================================================
-# CNN MODEL
-# ============================================================
+""" 2. MODELO CNN"""
+
 class DigitCNN(nn.Module):
-    def __init__(self):
-        super().__init__()
-        self.features = nn.Sequential(
-            nn.Conv2d(1, 32, 3, padding=1), nn.ReLU(),
-            nn.MaxPool2d(2),
-            nn.Conv2d(32, 64, 3, padding=1), nn.ReLU(),
-            nn.MaxPool2d(2),
-            nn.Conv2d(64, 128, 3, padding=1), nn.ReLU(),
-            nn.MaxPool2d(2),
+    def __init__(self, in_channels=1, num_classes=10):
+        super(DigitCNN, self).__init__()
+        # 1ª Layer
+        self.conv1 = nn.Conv2d(
+            in_channels=in_channels,
+            out_channels=8,
+            kernel_size=3,
+            stride=1,
+            padding=1,
         )
-        self.classifier = nn.Sequential(
-            nn.Flatten(),
-            nn.Linear(128 * 3 * 3, 128),
-            nn.ReLU(),
-            nn.Dropout(0.4),
-            nn.Linear(128, 10)  # 1 -- 9
+        
+        # Layer Max Pool
+        self.pool = nn.MaxPool2d(kernel_size=2, stride=2)
+        
+        # 2ª Layer
+        self.conv2 = nn.Conv2d(
+            in_channels=8,
+            out_channels=16,
+            kernel_size=3,
+            stride=1,
+            padding=1,
         )
+        self.fc1 = nn.Linear(16 * 7 * 7, num_classes)
+
     def forward(self, x):
-        return self.classifier(self.features(x))
+        x = F.relu(self.conv1(x))
+        x = self.pool(x)
+        x = F.relu(self.conv2(x))
+        x = self.pool(x)
+        x = x.reshape(x.shape[0], -1)
+        x = self.fc1(x)
+        return x
+
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 model = DigitCNN().to(device)
@@ -136,9 +124,8 @@ criterion = nn.CrossEntropyLoss()
 optimizer = optim.Adam(model.parameters(), lr=1e-3)
 
 
-# ============================================================
-# TRAIN ONCE / LOAD MODEL
-# ============================================================
+""" 3. TREINAR O MODELO """
+
 MODEL_PATH = "digit_cnn.pth"
 if os.path.exists(MODEL_PATH):
     print("DEBUG -- Loading trained CNN...")
@@ -146,15 +133,15 @@ if os.path.exists(MODEL_PATH):
     model.eval()
     
     for x, y in train_loader:
-        out = model(x)             # get predictions for this batch
-        print("DEBUG -- Predicted classes:", out.argmax(1))  # should include 0–15
+        out = model(x)             
+        print("DEBUG -- Predicted classes:", out.argmax(1)) 
         break 
     SKIP_TRAINING = True
 else:
     SKIP_TRAINING = False
 
 if not SKIP_TRAINING:
-    for epoch in range(10):  # fewer epochs for CPU
+    for epoch in range(10): 
         model.train()
         total_loss = 0
         for x, y in train_loader:
@@ -168,9 +155,8 @@ if not SKIP_TRAINING:
         print(f"Epoch {epoch+1} | Avg Loss {avg_loss:.4f}")
     torch.save(model.state_dict(), MODEL_PATH)
 
-# ============================================================
-# CNN PREDICTION
-# ============================================================
+""" 4. PREVISÕES CNN """
+
 def cnn_predict(roi):
     tensor = preprocess_for_cnn(roi).unsqueeze(0).to(device)
     with torch.no_grad():
@@ -182,9 +168,7 @@ def cnn_predict(roi):
 
     return label, confidence
 
-# ============================================================
-# GRID + CONTOUR + TWO-DIGIT HANDLING
-# ============================================================
+# Handling de dois dígitos no mesmo quadrado
 cell_h = img_binary.shape[0] // 4
 cell_w = img_binary.shape[1] // 4
 regioes_unidas = []
@@ -200,7 +184,6 @@ for row in range(4):
             regioes_unidas.append((x1, y1, cell_w, cell_h, None,[]))
             continue
 
-        # Merge all points to get full bounding box
         pts = np.vstack([c.reshape(-1,2) for c in contornos])
         x_min, y_min = pts.min(axis=0)
         x_max, y_max = pts.max(axis=0)
@@ -210,14 +193,6 @@ for row in range(4):
         regiao = mask[y_min:y_max, x_min:x_max]
         regioes_unidas.append((x1+x_min, y1+y_min, x_max-x_min, y_max-y_min, regiao, contornos))
 
-# ============================================================
-# PREDICTING DIGITS (HANDLE 1 OR 2 DIGITS)
-# ============================================================
-nums_matriz = []
-
-# ----------------------------
-# PREDICTING DIGITS, MERGED, ALL CONFIDENCE
-# ----------------------------
 nums_matriz = []
 
 for x, y, w, h, regiao, contornos in regioes_unidas:
@@ -225,7 +200,6 @@ for x, y, w, h, regiao, contornos in regioes_unidas:
         nums_matriz.append(0)
         continue
 
-    # Predict each contour in the cell
     cell_digits = []
     for c in contornos:
         area = cv2.contourArea(c)
@@ -245,14 +219,11 @@ for x, y, w, h, regiao, contornos in regioes_unidas:
 
         cell_digits.append((cx, label))
 
-    # Sort left to right
-    # cell_digits = [(cx, label), ...]
-
-    cell_digits.sort(key=lambda x: x[0])  # left → right
+    cell_digits.sort(key=lambda x: x[0]) 
     digits = [d for _, d in cell_digits][:2]
 
     if len(digits) == 0:
-        nums_matriz.append(-1)
+        nums_matriz.append(0)
 
     elif len(digits) == 1:
         nums_matriz.append(int(digits[0]))
@@ -261,11 +232,9 @@ for x, y, w, h, regiao, contornos in regioes_unidas:
         nums_matriz.append(int(f"{digits[0]}{digits[1]}"))
 
 
-
-# Fill remaining empty cells to 16 entries
 while len(nums_matriz) < 16:
-    nums_matriz.append(-1)
+    nums_matriz.append(0)
 
 # Convert to 4x4 numpy array
 matrix_4x4 = np.array(nums_matriz).reshape(4, 4)
-print("Final 4x4 matrix:\n", matrix_4x4)
+print("Tabuleiro de jogo da fotografia:\n", matrix_4x4)
