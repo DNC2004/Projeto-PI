@@ -21,7 +21,7 @@ class GameBoardApp(tk.Tk):
     def __init__(self):
         super().__init__()
 
-        self.title("Deteção de Tabuleiro 4x4")
+        self.title("Deteção Jogo do 15")
         self.geometry("900x700")
 
         # Imagem Selecionada
