@@ -23,5 +23,7 @@ A partir desta vamos retirar os números presentes no tabuleiro, bem como a sua 
 ---
 
 Atualizado a: 19/01/2026
+
+
 Nota Final: 19 (0-20)
 
