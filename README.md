@@ -15,7 +15,7 @@ A partir desta vamos retirar os números presentes no tabuleiro, bem como a sua 
 4. Construir a *CNN* 
 5. Repetir a **etapa 3** 
    
-## 🛠️ Tecnologias
+## Tecnologias
 * **Linguagem:** Python 3.10+
 * **Visão Computacional:** OpenCV
 * **Deep Learning:** PyTorch
@@ -26,4 +26,43 @@ Atualizado a: 19/01/2026
 
 
 Nota Final: 19 (0-20)
+
+
+
+------
+English Description
+------
+
+# Image Processing Project
+
+The project consists of a Python application that, given a photograph of a 4x4 game board numbered from 1 to 15:
+
+At first it transform the image into one that only shows the board itself.
+
+From there, the numbers present on the board are going to be extracted, as well as their position. 
+This process will be done in two different ways:
+
+  1. *Template Matching*: Using templates for each number, we will find its *match* in the original photograph;
+  2. *CNN*: Let's create a neural network that, after being trained, will be able to extract the numbers from the photograph.
+
+---
+## Project Steps
+
+1. Obtain an image with only the game board.
+2. Perform *template matching*.
+3. Obtain the game board matrix from the photograph.
+4. Build the *CNN*.
+5. Repeat **step 3**.
+
+## Technologies
+* **Language:** Python 3.10+
+* **Computer Vision:** OpenCV
+* **Deep Learning:** PyTorch
+* **IDE:** Spyder and VS Code
+
+---
+
+Updated on: 01/19/2026
+
+Final Grade: 19 (0-20)
 
